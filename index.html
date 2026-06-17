@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time band - 밴드 합주 일정 조율</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .time-block.blocked { background-color: #ef4444; color: white; }
+        .time-block.available { background-color: #f3f4f6; }
+        .time-block.available:hover { background-color: #e5e7eb; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+
+    <header class="bg-indigo-600 text-white shadow-md py-4 px-6 flex justify-between items-center">
+        <h1 class="text-2xl font-bold tracking-wider"><i class="fa-solid fa-drum"></i> Time band</h1>
+        <span class="text-sm bg-indigo-700 px-3 py-1 rounded-full text-indigo-200">역발상 일정 조율</span>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+
+        <section id="step-create-room" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold mb-4 text-indigo-600"><i class="fa-solid fa-circle-plus"></i> 새로운 합주 조율 방 만들기</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">합주 곡 제목 / 프로젝트명</label>
+                    <input type="text" id="room-title" placeholder="예: 7월 정기공연 첫 합주 (지킬앤하이드)" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">수합 시작 날짜</label>
+                        <input type="date" id="start-date" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">수합 종료 날짜 (최대 5일 권장)</label>
+                        <input type="date" id="end-date" class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+                <button onclick="createRoom()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition">방 생성하고 시작하기</button>
+            </div>
+        </section>
+
+        <section id="step-dashboard" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div class="border-b pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                    <h2 id="view-room-title" class="text-2xl font-bold text-slate-900">방 제목</h2>
+                    <p id="view-room-period" class="text-sm text-slate-500">기간: </p>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl w-full md:w-auto">
+                    <p class="text-xs text-indigo-700 font-bold"><i class="fa-solid fa-link"></i> 멤버 초대 링크 (데이터 연동 포함)</p>
+                    <div class="flex gap-2 mt-1">
+                        <input type="text" id="share-url" readonly class="text-xs p-2 bg-white border rounded w-full md:w-80 font-mono text-slate-600">
+                        <button onclick="copyShareUrl()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1 rounded font-bold transition">복사</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-users"></i> 실시간 멤버 일정 입력 현황</h3>
+                <div id="member-status-list" class="flex flex-wrap gap-2">
+                    </div>
+            </div>
+
+            <hr>
+
+            <div id="user-auth-zone" class="space-y-4">
+                <h3 class="text-md font-bold text-slate-900"><i class="fa-solid fa-user-tag"></i> 내 일정 입력하기</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="user-name" placeholder="이름을 입력하세요" class="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select id="user-position" class="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">포지션 선택</option>
+                        <option value="보컬">🎤 보컬</option>
+                        <option value="기타">🎸 기타</option>
+                        <option value="베이스">🎸 베이스</option>
+                        <option value="드럼">🥁 드럼</option>
+                        <option value="키보드">🎹 키보드</option>
+                    </select>
+                    <button onclick="startScheduleInput()" class="bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition">일정 입력 캘린더 열기</button>
+                </div>
+            </div>
+
+            <div id="schedule-input-zone" class="hidden border p-4 rounded-xl bg-slate-50 space-y-4">
+                <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                    <i class="fa-solid fa-circle-info"></i> <strong>차별화된 입력 방식:</strong> 가능한 시간이 아니라, 정기 직장/학업/알바 등 <strong>내가 합주할 수 없는 불가능한 시간대만 클릭(또는 드래그)하여 빨간색으로 채워주세요!</strong> 그 외 시간은 모두 가능으로 계산됩니다.
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <div id="timetable-container" class="min-w-[600px] bg-white border rounded-lg">
+                        </div>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button onclick="saveUserSchedule()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2 rounded-xl transition">내 불가능한 시간 제출 완료</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="step-results" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-emerald-600"><i class="fa-solid fa-wand-magic-sparkles"></i> Time band 분석 결과</h2>
+                <button onclick="calculateBestTime()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition"><i class="fa-solid fa-calculator"></i> 공통 시간대 계산하기</button>
+            </div>
+            <p class="text-xs text-slate-500">※ 모든 멤버들이 입력한 정보를 기반으로 자동으로 겹치는 공통 시간을 추출하며, 만족하지 못할 경우 필수 포지션을 우대한 차선책을 글자 형식으로 출력합니다.</p>
+            
+            <div id="result-box" class="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-sm space-y-2 whitespace-pre-line leading-relaxed">
+                결과 계산하기 버튼을 누르면 텍스트 형태의 최적 스케줄 보고서가 이곳에 도출됩니다.
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center py-8 text-xs text-slate-400">
+        &copy; 2026 Time band. Designed for Band Musicians Room Coordinator.
+    </footer>
+
+    <script>
+        let currentRoomId = "";
+        let roomConfig = { title: "", startDate: "", endDate: "", dates: [] };
+        let members = []; 
+
+        const timeSlots = []; 
+        for(let h=9; h<=23; h++) {
+            timeSlots.push(`${String(h).padStart(2,'0')}:00`);
+            timeSlots.push(`${String(h).padStart(2,'0')}:30`);
+        }
+
+        let currentInputBlocks = new Set(); 
+        let isMouseDown = false;
+
+        // 5대 전 포지션 선언
+        const ALL_POSITIONS = ["보컬", "기타", "베이스", "드럼", "키보드"];
+
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room');
+            
+            if(roomId) {
+                currentRoomId = roomId;
+                // 저장소에서 해당 방 번호의 데이터를 조회
+                const savedData = localStorage.getItem("timeband_room_" + roomId);
+                
+                if(savedData) {
+                    const parsed = JSON.parse(savedData);
+                    roomConfig = parsed.roomConfig;
+                    members = parsed.members;
+                } else {
+                    // 혹시 저장 공간이 유실되었을 때를 대비한 기본 백업 복구 맵핑
+                    roomConfig.title = "7월 정기공연 첫 합주 프로젝트 조율방";
+                    let today = new Date();
+                    let future = new Date();
+                    future.setDate(today.getDate() + 3);
+                    roomConfig.startDate = today.toISOString().split('T')[0];
+                    roomConfig.endDate = future.toISOString().split('T')[0];
+                    
+                    roomConfig.dates = [];
+                    let current = new Date(roomConfig.startDate);
+                    while (current <= future) {
+                        roomConfig.dates.push(current.toISOString().split('T')[0]);
+                        current.setDate(current.getDate() + 1);
+                    }
+                    initDefaultMembers();
+                }
+
+                // UI 연동 업데이트
+                document.getElementById('view-room-title').innerText = `🎵 ${roomConfig.title}`;
+                document.getElementById('view-room-period').innerText = `🕒 조율 기간: ${roomConfig.startDate} ~ ${roomConfig.endDate}`;
+                updateShareUrlUI();
+
+                document.getElementById('step-create-room').classList.add('hidden');
+                document.getElementById('step-dashboard').classList.remove('hidden');
+                document.getElementById('step-results').classList.remove('hidden');
+
+                renderStatus();
+            }
+        };
+
+        // 방 최초 생성 시
+        function createRoom() {
+            const titleInput = document.getElementById('room-title');
+            const startInput = document.getElementById('start-date');
+            const endInput = document.getElementById('end-date');
+
+            const title = titleInput ? titleInput.value.trim() : "";
+            const start = startInput ? startInput.value : "";
+            const end = endInput ? endInput.value : "";
+
+            if(!title || !start || !end) {
+                alert("모든 입력 항목을 완성해 주세요.");
+                return;
+            }
+
+            currentRoomId = "room_" + Math.floor(Math.random() * 1000000);
+            roomConfig.title = title;
+            roomConfig.startDate = start;
+            roomConfig.endDate = end;
+
+            roomConfig.dates = [];
+            let current = new Date(start);
+            const stopDate = new Date(end);
+            while (current <= stopDate) {
+                roomConfig.dates.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
+            }
+
+            document.getElementById('view-room-title').innerText = `🎵 ${title}`;
+            document.getElementById('view-room-period').innerText = `🕒 조율 기간: ${start} ~ ${end}`;
+            
+            // ⭐ [피드백 해결] 무조건 보컬, 기타, 베이스, 드럼, 키보드 전원 다 대기 상태로 세팅
+            initDefaultMembers();
+
+            // 로컬 스토리지에 최초 상태 저장
+            saveToStorage();
+            updateShareUrlUI();
+
+            document.getElementById('step-create-room').classList.add('hidden');
+            document.getElementById('step-dashboard').classList.remove('hidden');
+            document.getElementById('step-results').classList.remove('hidden');
+
+            renderStatus();
+        }
+
+        // ⭐ 전 포지션을 아무도 입력하지 않은 깨끗한 '대기' 상태로 만드는 기본 함수
+        function initDefaultMembers() {
+            members = [];
+            ALL_POSITIONS.forEach(pos => {
+                members.push({
+                    name: "미입력",
+                    position: pos,
+                    status: "대기",
+                    blockedTimes: []
+                });
+            });
+        }
+
+        // 로컬 브라우저 저장소에 동기화 백업 수행
+        function saveToStorage() {
+            const payload = { roomConfig: roomConfig, members: members };
+            localStorage.setItem("timeband_room_" + currentRoomId, JSON.stringify(payload));
+        }
+
+        // 링크 주소에 방 ID 매핑하여 출력
+        function updateShareUrlUI() {
+            const currentUrl = window.location.href.split('#')[0].split('?')[0];
+            document.getElementById('share-url').value = `${currentUrl}?room=${currentRoomId}`;
+        }
+
+        function copyShareUrl() {
+            const shareUrlInput = document.getElementById('share-url');
+            shareUrlInput.select();
+            shareUrlInput.setSelectionRange(0, 99999); 
+            try {
+                // 스토리지 최종본 저장 상태 확인 후 복사
+                saveToStorage();
+                navigator.clipboard.writeText(shareUrlInput.value);
+                alert('초대 링크가 복사되었습니다!\n이 링크를 다른 브라우저 창이나 팀원에게 전달하면 실시간으로 스케줄이 누적 수합됩니다.');
+            } catch (err) {
+                alert('링크를 복사해주세요: ' + shareUrlInput.value);
+            }
+        }
+
+        // 현황판 그리기
+        function renderStatus() {
+            const container = document.getElementById('member-status-list');
+            container.innerHTML = "";
+            members.forEach(m => {
+                const isDone = m.status === "완료";
+                const badgeClass = isDone ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-amber-100 text-amber-800 border-amber-300";
+                const icon = isDone ? "fa-circle-check" : "fa-clock";
+                
+                const div = document.createElement('div');
+                div.className = `border px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 ${badgeClass}`;
+                div.innerHTML = `<span>[${m.position}] ${m.name}</span> <i class="fa-solid ${icon}"></i> <span class="text-[10px] opacity-80">${m.status}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function startScheduleInput() {
+            const name = document.getElementById('user-name').value.trim();
+            const pos = document.getElementById('user-position').value;
+
+            if(!name || !pos) {
+                alert("이름과 담당 포지션을 선택해주세요.");
+                return;
+            }
+
+            currentInputBlocks.clear();
+            document.getElementById('schedule-input-zone').classList.remove('hidden');
+            renderTimetable();
+        }
+
+        function renderTimetable() {
+            const container = document.getElementById('timetable-container');
+            container.innerHTML = "";
+
+            const headerRow = document.createElement('div');
+            headerRow.className = "grid grid-cols-[80px_repeat(" + roomConfig.dates.length + ",1fr)] border-b text-center text-xs font-bold bg-slate-100 py-2";
+            
+            const timeLabel = document.createElement('div');
+            timeLabel.innerText = "시간";
+            headerRow.appendChild(timeLabel);
+
+            const weekDays = ['일','월','화','수','목','금','토'];
+            roomConfig.dates.forEach(d => {
+                const div = document.createElement('div');
+                const dayNum = new Date(d).getDay();
+                div.innerText = `${d.substring(5)} (${weekDays[dayNum]})`;
+                headerRow.appendChild(div);
+            });
+            container.appendChild(headerRow);
+
+            timeSlots.forEach(slot => {
+                const row = document.createElement('div');
+                row.className = "grid grid-cols-[80px_repeat(" + roomConfig.dates.length + ",1fr)] text-center text-xs border-b last:border-0";
+                
+                const label = document.createElement('div');
+                label.className = "bg-slate-50 border-r py-1 text-slate-500 font-mono text-[11px] flex items-center justify-center";
+                label.innerText = slot;
+                row.appendChild(label);
+
+                roomConfig.dates.forEach(date => {
+                    const cell = document.createElement('div');
+                    const timestamp = `${date} ${slot}`;
+                    cell.className = "time-block available border-r last:border-0 py-1 transition-all cursor-pointer select-none text-[10px] text-transparent";
+                    cell.innerText = "X";
+                    cell.dataset.timestamp = timestamp;
+
+                    cell.addEventListener('mousedown', (e) => {
+                        isMouseDown = true;
+                        toggleBlock(cell, timestamp);
+                    });
+                    cell.addEventListener('mouseenter', () => {
+                        if(isMouseDown) toggleBlock(cell, timestamp);
+                    });
+
+                    row.appendChild(cell);
+                });
+                container.appendChild(row);
+            });
+
+            window.addEventListener('mouseup', () => { isMouseDown = false; });
+        }
+
+        function toggleBlock(element, timestamp) {
+            if(currentInputBlocks.has(timestamp)) {
+                currentInputBlocks.delete(timestamp);
+                element.classList.remove('blocked');
+                element.classList.add('available');
+            } else {
+                currentInputBlocks.add(timestamp);
+                element.classList.remove('available');
+                element.classList.add('blocked');
+            }
+        }
+
+        // ⭐ [피드백 핵심 해결] 각자 일정을 제출했을 때 전체 방 데이터 베이스에 누적 동기화하는 함수
+        function saveUserSchedule() {
+            const name = document.getElementById('user-name').value.trim();
+            const pos = document.getElementById('user-position').value;
+
+            // 1. 저장소에서 실시간으로 가장 최신의 전체 데이터 상태를 다시 읽어옵니다 (다른 사람이 입력했을 수 있으므로)
+            const latestData = localStorage.getItem("timeband_room_" + currentRoomId);
+            if(latestData) {
+                const parsed = JSON.parse(latestData);
+                members = parsed.members;
+            }
+
+            // 2. 대기 상태에 매핑되어 있는 내 포지션을 찾습니다.
+            const targetIdx = members.findIndex(m => m.position === pos);
+
+            const userPayload = {
+                name: name,
+                position: pos,
+                status: "완료",
+                blockedTimes: Array.from(currentInputBlocks)
+            };
+
+            if(targetIdx >= 0) {
+                // 대기 중이던 내 포지션 칸만 덮어쓰고 다른 포지션의 기존 입력값은 완벽히 유지합니다.
+                members[targetIdx] = userPayload;
+            } else {
+                members.push(userPayload);
+            }
+
+            // 3. 누적 가공된 최종 상태를 저장소에 확정 저장합니다.
+            saveToStorage();
+
+            renderStatus(); 
+            document.getElementById('schedule-input-zone').classList.add('hidden');
+            alert(`${name}님의 불가능한 일정 제출이 완료되었으며 전체 방에 영구 보존되었습니다!`);
+        }
+
+        function calculateBestTime() {
+            const resultBox = document.getElementById('result-box');
+            
+            // 최신 저장소 상태 불러오기
+            const latestData = localStorage.getItem("timeband_room_" + currentRoomId);
+            if(latestData) {
+                members = JSON.parse(latestData).members;
+            }
+
+            const completedMembers = members.filter(m => m.status === "완료");
+            if(completedMembers.length === 0) {
+                resultBox.innerText = "일정을 입력하고 제출한 멤버가 아직 없습니다.";
+                return;
+            }
+
+            let finalReport = `========================================\n`;
+            finalReport += `   🎵 Time band 최적 합주 시간 대조 결과 보고서\n`;
+            finalReport += `========================================\n\n`;
+
+            const weekDays = ['일','월','화','수','목','금','토'];
+            let perfectMatches = []; 
+
+            roomConfig.dates.forEach(date => {
+                const dayNum = new Date(date).getDay();
+                const dateLabel = `${date}(${weekDays[dayNum]})`;
+
+                timeSlots.forEach(slot => {
+                    let fullAvailable = true;
+                    let missingMembers = []; 
+
+                    completedMembers.forEach(m => {
+                        const isBlocked = m.blockedTimes.includes(`${date} ${slot}`);
+                        if(isBlocked) {
+                            fullAvailable = false;
+                            missingMembers.push(`${m.position}(${m.name})`);
+                        }
+                    });
+
+                    if(fullAvailable) {
+                        perfectMatches.push({ label: dateLabel, time: slot });
+                    }
+                });
+            });
+
+            if(perfectMatches.length === 0) {
+                finalReport += ` ⚠️ 현재 일정을 제출한 멤버 간 공통으로 전원 참석 가능한 시간대가 존재하지 않습니다.\n 불참 시간대를 조율해 주세요.\n`;
+            } else {
+                finalReport += `🥇 [추천] 입력 완료 멤버 전원 공통 가능 시간대\n`;
+                
+                let idx = 0;
+                while (idx < perfectMatches.length) {
+                    let start = perfectMatches[idx];
+                    let endSlot = start.time;
+                    let nextIdx = idx + 1;
+                    
+                    while (nextIdx < perfectMatches.length && perfectMatches[nextIdx].label === start.label) {
+                        let currMin = parseInt(endSlot.split(':')[0])*60 + parseInt(endSlot.split(':')[1]);
+                        let nextMin = parseInt(perfectMatches[nextIdx].time.split(':')[0])*60 + parseInt(perfectMatches[nextIdx].time.split(':')[1]);
+                        if(nextMin - currMin > 30) break;
+
+                        endSlot = perfectMatches[nextIdx].time;
+                        nextIdx++;
+                    }
+                    
+                    finalReport += ` ⭐️ [${start.label}] <${start.time} ~ ${endSlot}> 가능합니다.\n`;
+                    idx = nextIdx;
+                }
+            }
+
+            finalReport += `\n----------------------------------------\n`;
+            finalReport += `※ 스케줄 조율 현황은 브라우저 내에 누적 안전 보존 중입니다.`;
+            resultBox.innerText = finalReport;
+        }
+    </script>
+</body>
+</html>
